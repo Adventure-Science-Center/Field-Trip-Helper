@@ -1,5 +1,0 @@
-appmode
-matplotlib
-numpy
-pandas
-seaborn
