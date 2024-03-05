@@ -1,2 +1,3 @@
 venv/*
 .ipynb_checkpoints/Field Trip Helper-checkpoint.ipynb
+.DS_Store
