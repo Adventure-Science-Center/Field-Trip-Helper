@@ -1,6 +1,7 @@
 # Standard packages
 import datetime
 import itertools
+import math
 
 # Third-party packages
 from IPython.display import display, HTML, FileLink
@@ -84,7 +85,7 @@ def create_end_time(row: pd.Series) -> pd.Timestamp | None:
     return pd.Timestamp(date.year, date.month, date.day, int(row.Endtime[0:2]), int(row.Endtime[2:]))
 
 
-def get_date(df: pd.DataFrame, date) -> pd.DataFrame:
+def get_date(df: pd.DataFrame, date: str | datetime.date) -> pd.DataFrame:
     """Return the field trip entries for the given date."""
 
     if isinstance(date, str):
@@ -92,6 +93,41 @@ def get_date(df: pd.DataFrame, date) -> pd.DataFrame:
         date = datetime.datetime(int(split[0]), int(split[1]), int(split[2])).date()
 
     return df[df.Arrival.dt.date == pd.Timestamp(date).date()]
+
+
+def search_name(df: pd.DataFrame, search: str) -> list[tuple[str, datetime.date]]:
+    """Return a list of names that match the given string."""
+
+    matches = (df[df.Name.str.lower().str.contains(search.lower().strip())]
+               .groupby(["Name", "Arrival"]).sum(numeric_only=True).reset_index())
+    result = []
+
+    for i, row in matches.iterrows():
+        result.append((row.Name, row.Arrival.date()))
+
+    return result
+
+
+def get_name(df: pd.DataFrame, name: str, date: str | datetime.date = None) -> list[pd.DataFrame]:
+    """Return the field trip entries for the given name.
+
+    If multiple names match, disambiguate by an optional date.
+    If there are still multiple matches, return all.
+    """
+
+    if isinstance(date, str):
+        split = date.split('-')
+        date = datetime.datetime(int(split[0]), int(split[1]), int(split[2])).date()
+
+    matches = search_name(df, name)
+
+    if len(matches) > 1 and date is not None:
+        matches = [x for x in matches if x[1] == date]
+
+    result = []
+    for match in matches:
+        result.append(df[df.Name == match[0]])
+    return result
 
 
 def get_date_range(df: pd.DataFrame, start, end) -> pd.DataFrame:
@@ -130,44 +166,48 @@ def decimal_time(date) -> float:
     return date.hour + date.minute / 60
 
 
-def format_name(name: str) -> str:
+def format_name(name: str, single_line: bool = False) -> str:
     """Format the name of a given program."""
 
+    result = name
     if name == 'SCH - L - Amusement Park Physics STEM Lab':
-        return "Amusement\nPark Physics"
+        result = "Amusement\nPark Physics"
     if name == 'SCH - L - Squid Dissection STEM Lab':
-        return "Squid\nDissection"
+        result = "Squid\nDissection"
     if name == 'SCH - D - Matter Matters':
-        return "Matter Matters"
+        result = "Matter Matters"
     if name == 'PS - School Shows':
-        return "School Show"
+        result = "School Show"
     if name == 'SCH - D - Cooking Up a Storm':
-        return "Cooking Up\na Storm"
+        result = "Cooking Up\na Storm"
     if name == 'SCH - L - Cow Eye Dissection STEM Lab':
-        return "Cow Eye\nDissection"
+        result = "Cow Eye\nDissection"
     if name == 'SCH - D - Get Energized!':
-        return 'Get Energized!'
+        result = 'Get Energized!'
     if name == 'PS - To Worlds Beyond':
-        return 'To Worlds\nBeyond'
+        result = 'To Worlds\nBeyond'
     if name == 'SCH - L - Splitting Molecules STEM Lab':
-        return 'Splitting\nMolecules'
+        result = 'Splitting\nMolecules'
     if name == 'SCH - D - Space Exploration':
-        return 'Space\nExploration'
+        result = 'Space\nExploration'
     if name == 'SCH - L - Fetal Pig STEM Lab':
-        return 'Fetal Pig\nDissection'
+        result = 'Fetal Pig\nDissection'
     if name == 'PS - Nightwatch':
-        return 'Nightwatch'
+        result = 'Nightwatch'
     if name == 'SCH - D - Chemistry is a Blast!':
-        return 'Chemistry\nis a Blast'
+        result = 'Chemistry\nis a Blast'
     if name == "SCH - D - Shocking, It's Science!":
-        return "Shocking,\nIt's Science!"
+        result = "Shocking,\nIt's Science!"
     if name == "SCH - D - Get Fired Up!":
-        return 'Get Fired Up!'
+        result = 'Get Fired Up!'
 
-    return name
+    if single_line is True:
+        # Remove the line breaks
+        result = result.replace('\n', ' ')
+    return result
 
 
-def get_color(name_colors: dict, name: str):
+def get_school_color(name_colors: dict, name: str):
     """Return a color for each unique school name"""
 
     if name not in name_colors:
@@ -219,7 +259,7 @@ def generate_schedule_image(date):
         end = decimal_time(row["End time"])
         duration = end - start
         plt.bar(locations[row.Location], duration, bottom=start, label=check_legend(legend_names, row.Name),
-                color=get_color(name_colors, row.Name), zorder=10)
+                color=get_school_color(name_colors, row.Name), zorder=10)
         plt.text(locations[row.Location], (start + end) / 2,
                  format_name(row.Program) + "\n(" + str(row.Quantity) + "/" + str(row.Capacity) + ")", ha='center',
                  va='center', zorder=20)
@@ -588,3 +628,102 @@ def search_from_browser(*args):
                 overlays = []
             display(visualize_search_schedule(date, overlays))
 
+
+def time_labels(times) -> list[str]:
+    """Generate the English representation of a set of times.
+
+    i.e., 14.5 -> '2:30 PM'
+    """
+
+    result = []
+    for time in times:
+        if time >= 13:
+            result.append(str(math.floor(time-12)) + ':' + str(round(time % 1*60)).rjust(2, '0') + ' PM')
+        elif 12 <= time < 13:
+            result.append(str(math.floor(time)) + ':' + str(round(time % 1 * 60)).rjust(2, '0') + ' PM')
+        else:
+            result.append(str(math.floor(time)) + ':' + str(round(time % 1 * 60)).rjust(2, '0') + ' AM')
+    return result
+
+
+def get_event_color(name: str) -> tuple[float]:
+    """Return a Seaborn color matching the given location/event."""
+
+    palette = sb.color_palette()
+    colors = {
+        'Arrival': palette[1],
+        'Departure': palette[3],
+        'Eureka Theater': palette[4],
+        'Green Classroom': palette[2],
+        'Jack Wood Hall': palette[7],
+        'Learning Lab': palette[5],
+        'Sudekum Planetarium': palette[0],
+        'Yellow Classroom': palette[8],
+    }
+    if name in colors:
+        return colors[name]
+    return palette[9]
+
+
+# def get_event_text_color(name):
+#     """Return the text color that complements the event color."""
+#
+#     colors = {
+#         'Arrival': 'white',
+#         'Departure': 'white',
+#         'Eureka Theater': 'white',
+#         'Green Classroom': palette[2],
+#         'Jack Wood Hall': palette[7],
+#         'Learning Lab': palette[5],
+#         'Sudekum Planetarium': palette[0],
+#         'Yellow Classroom': palette[8],
+#     }
+#     if name in colors:
+#         return colors[name]
+#     return palette[9]
+
+def create_itinerary_graphic(df: pd.DataFrame):
+    """Create a graphic that represents the visit for a single group.
+
+    df is assumed to represent the visit for only one group.
+    """
+
+    arrival = decimal_time(df.iloc[0].Arrival)
+    departure = decimal_time(df.iloc[0].Departure)
+    name = df.iloc[0].Name
+
+    # Plot arrival and departure
+    plt.bar(1, 0.5, bottom=arrival, zorder=10, color=get_event_color('Arrival'))
+    plt.text(1, arrival + .25, 'Arrive', ha='center', va='center', zorder=20, color='white')
+
+    plt.bar(1, 0.5, bottom=departure, zorder=10, color=get_event_color('Departure'))
+    plt.text(1, departure + .25, 'Depart', ha='center', va='center', zorder=20, color='white')
+
+    combo = df.groupby(["Name", "Program", "Location", "Start time", "End time", "Capacity"]).sum(
+        numeric_only=True).reset_index()
+
+    for i, row in combo.iterrows():
+        if row.Location is None:
+            continue
+
+        start = decimal_time(row["Start time"])
+        end = decimal_time(row["End time"])
+        duration = end - start
+        plt.bar(1, duration, bottom=start, zorder=10, color=get_event_color(row.Location))
+        plt.text(1, (start + end) / 2,
+                 str(time_labels([start])[0]) + ': ' + format_name(row.Program, single_line=True) + f" ({row.Location})", ha='center',
+                 color='white', va='center', zorder=20)
+
+    plt.title(name)
+    ticks = np.arange(arrival, departure + 1, 0.5)
+    plt.ylim([departure + 1, arrival - 0.5])
+    plt.yticks(ticks, time_labels(ticks))
+    plt.xticks([])
+    plt.grid(which='major', axis='y', zorder=1)
+    plt.gca().tick_params(right=True, labelright=True, rotation=0)
+
+    fig = plt.gcf()
+    fig.set_size_inches(8, 10)
+    plt.tight_layout()
+
+    return fig

@@ -33,6 +33,13 @@ browse_date_box = widgets.HBox([browse_date_picker,browse_select_date_button])
 
 browse_output = widgets.Output(layout={'border': '1px solid black'})
 
+group_search_field = widgets.Text(placeholder='Group name')
+
+group_search_button = widgets.Button(description="Search")
+
+group_search_box = widgets.HBox([group_search_field, group_search_button])
+
+group_search_output = widgets.Output(layout={'border': '1px solid black'})
 
 find_start_date_picker = widgets.DatePicker(description="Start date")
 find_end_date_picker = widgets.DatePicker(description="End date")
@@ -108,8 +115,9 @@ find_output = widgets.Output(layout={'border': '1px solid black'})
 interface = widgets.Tab(layout=widgets.Layout(width="500px"))
 interface.children = [
      widgets.VBox([browse_date_box, browse_output]),
+     widgets.VBox([group_search_box, group_search_output]),
      widgets.VBox([find_datetime_box, find_programs_box, find_misc_box, find_search, find_output])
 ]
-interface.titles = ["Schedule browser", "Booking helper"]
+interface.titles = ["Schedule browser", "Group finder", "Booking helper"]
 
 main_output = widgets.Output()
